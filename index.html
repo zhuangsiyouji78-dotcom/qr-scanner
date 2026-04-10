@@ -13,11 +13,11 @@ body {
   font-family: sans-serif;
 }
 #reader {
-  width: 300px;
-  margin: auto;
+  width: 320px;
+  margin: 20px auto;
 }
 .result {
-  font-size: 24px;
+  font-size: 26px;
   margin-top: 20px;
 }
 .success { color: #00ff88; }
@@ -32,68 +32,87 @@ body {
 <div id="result" class="result"></div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/●●●/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyGsBwlupZp6J3c2UEGwZMLWKT6Ofh2K5IyP2ovEvsm8A2TC-mCUAGx2rW3mzIYNAAs/exec";
 
 let lastScan = "";
 let queue = JSON.parse(localStorage.getItem("queue") || "[]");
 
+// 音
 function beep(success=true){
-  let audio = new Audio(success ?
-    "https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" :
-    "https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+  let audio = new Audio(success
+    ? "https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"
+    : "https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
   audio.play();
 }
 
-async function sendData(pno){
-  try {
-    let res = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({pno}),
-    });
-
-    let data = await res.json();
-
-    if(data.status === "success"){
-      show("OK: " + pno, true);
-      beep(true);
-    } else {
-      show("NG: " + data.message, false);
-      beep(false);
-    }
-
-  } catch(e){
-    queue.push(pno);
-    localStorage.setItem("queue", JSON.stringify(queue));
-    show("OFFLINE 保存", false);
+// バイブ
+function vibrate(success=true){
+  if (navigator.vibrate){
+    navigator.vibrate(success ? [100,50,100] : [300]);
   }
 }
 
-function retryQueue(){
-  if(queue.length === 0) return;
-
-  let copy = [...queue];
-  queue = [];
-
-  copy.forEach(sendData);
-  localStorage.setItem("queue", JSON.stringify(queue));
-}
-
+// 表示
 function show(msg, success){
   const el = document.getElementById("result");
   el.innerText = msg;
   el.className = "result " + (success ? "success" : "error");
 }
 
+// 送信（GET）
+function sendData(pno){
+  fetch(API_URL + "?pno=" + encodeURIComponent(pno))
+    .then(res => res.text())
+    .then(data => {
+
+      if (data.includes("Success")) {
+        show("OK: " + pno, true);
+        beep(true);
+        vibrate(true);
+      } else {
+        show("NG: " + data, false);
+        beep(false);
+        vibrate(false);
+      }
+
+    })
+    .catch(() => {
+      queue.push(pno);
+      localStorage.setItem("queue", JSON.stringify(queue));
+      show("OFFLINE 保存", false);
+      vibrate(false);
+    });
+}
+
+// 再送処理
+function retryQueue(){
+  if(queue.length === 0) return;
+
+  let copy = [...queue];
+  queue = [];
+  localStorage.setItem("queue", JSON.stringify(queue));
+
+  copy.forEach(pno => {
+    fetch(API_URL + "?pno=" + encodeURIComponent(pno));
+  });
+}
+
+// QR読み取り
 function onScanSuccess(decodedText) {
+
+  // 重複防止
   if(decodedText === lastScan) return;
   lastScan = decodedText;
 
   sendData(decodedText);
 }
 
+// スキャナ起動
 new Html5QrcodeScanner("reader", { fps: 10 }).render(onScanSuccess);
 
+// 5秒ごとに再送
 setInterval(retryQueue, 5000);
+
 </script>
 
 </body>
