@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Scanner</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+body {
+  background: #111;
+  color: white;
+  text-align: center;
+  font-family: sans-serif;
+}
+#reader {
+  width: 300px;
+  margin: auto;
+}
+.result {
+  font-size: 24px;
+  margin-top: 20px;
+}
+.success { color: #00ff88; }
+.error { color: #ff4444; }
+</style>
+</head>
+
+<body>
+
+<h2>QR SCAN</h2>
+<div id="reader"></div>
+<div id="result" class="result"></div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/●●●/exec";
+
+let lastScan = "";
+let queue = JSON.parse(localStorage.getItem("queue") || "[]");
+
+function beep(success=true){
+  let audio = new Audio(success ?
+    "https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" :
+    "https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+  audio.play();
+}
+
+async function sendData(pno){
+  try {
+    let res = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({pno}),
+    });
+
+    let data = await res.json();
+
+    if(data.status === "success"){
+      show("OK: " + pno, true);
+      beep(true);
+    } else {
+      show("NG: " + data.message, false);
+      beep(false);
+    }
+
+  } catch(e){
+    queue.push(pno);
+    localStorage.setItem("queue", JSON.stringify(queue));
+    show("OFFLINE 保存", false);
+  }
+}
+
+function retryQueue(){
+  if(queue.length === 0) return;
+
+  let copy = [...queue];
+  queue = [];
+
+  copy.forEach(sendData);
+  localStorage.setItem("queue", JSON.stringify(queue));
+}
+
+function show(msg, success){
+  const el = document.getElementById("result");
+  el.innerText = msg;
+  el.className = "result " + (success ? "success" : "error");
+}
+
+function onScanSuccess(decodedText) {
+  if(decodedText === lastScan) return;
+  lastScan = decodedText;
+
+  sendData(decodedText);
+}
+
+new Html5QrcodeScanner("reader", { fps: 10 }).render(onScanSuccess);
+
+setInterval(retryQueue, 5000);
+</script>
+
+</body>
+</html>
