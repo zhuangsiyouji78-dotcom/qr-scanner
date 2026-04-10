@@ -1,110 +1,75 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QR Scanner</title>
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-body {
-  background: #111;
-  color: white;
-  text-align: center;
-  font-family: sans-serif;
-}
-#reader {
-  width: 320px;
-  margin: 20px auto;
-}
-.result {
-  font-size: 20px;
-  margin-top: 20px;
-  word-break: break-all;
-}
-.success { color: #00ff88; }
-.error { color: #ff4444; }
-.info { color: #ffaa00; }
-</style>
-</head>
-
-<body>
-
-<h2>QR SCAN</h2>
-
-<div id="reader"></div>
-<div id="result" class="result"></div>
+<div id="status">待機中...</div>
+<div id="log"></div>
 
 <script>
 
-// ★あなたのGAS URL（確定版）
-const API_URL = "https://script.google.com/macros/s/AKfycbxaSdMBgbtt7PaM-p6Mp24JxvwmtYSyvsuJcpAjojkXMlxE-yxCAYwbvhjyneIm6nAq/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyENu1lkj7ZjJetSvLRoRNeggz_IwGan0QihuSFRxN67AW3OW-S-2KjnujKvfXeFeM/exec";
 
-alert("API_URL確認:\n" + API_URL); // デバッグ
-
-let lastScan = "";
-let lock = false; // 二重送信防止
-
-// 表示
-function show(msg, type="info"){
-  const el = document.getElementById("result");
-  el.innerText = msg;
-  el.className = "result " + type;
+function log(msg){
+  console.log(msg);
+  document.getElementById("log").innerHTML += "<br>" + msg;
 }
 
-// 送信（最強版：iframe src）
-function sendData(rawText){
-
-  if (lock) return;
-  lock = true;
-
-  let pno = rawText.trim();
-
-  if (!pno){
-    show("NG: 空データ", "error");
-    lock = false;
-    return;
-  }
-
-  let url = API_URL + "?pno=" + encodeURIComponent(pno);
-
-  console.log("送信URL:", url);
-  show("送信実行:\n" + url, "info");
-
-  try {
-    let iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    iframe.src = url;
-
-    document.body.appendChild(iframe);
-
-    show("送信完了: " + pno, "success");
-
-  } catch (e) {
-    console.log("送信失敗:", e);
-    show("OFFLINE（通信失敗）", "error");
-  }
-
-  // 2秒後ロック解除
-  setTimeout(() => { lock = false; }, 2000);
+function setStatus(msg){
+  document.getElementById("status").innerText = msg;
+  log("STATUS: " + msg);
 }
 
-// QR読み取り
-function onScanSuccess(decodedText){
+// ★テスト送信関数
+function testSend(){
 
-  let pno = decodedText.trim();
+  let pno = "TEST123";
 
-  if(pno === lastScan) return;
-  lastScan = pno;
+  setStatus("🚀 送信中...");
+  log("送信開始");
 
-  show("読取: " + pno, "info");
+  fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ pno: pno })
+  })
+  .then(res => {
+    log("レスポンス受信");
+    return res.json();
+  })
+  .then(data => {
 
-  sendData(pno);
+    log("JSON解析OK");
+
+    if (!data){
+      setStatus("❌ データなし");
+      return;
+    }
+
+    log("code: " + data.code);
+
+    switch(data.code){
+      case "OK":
+        setStatus("🎉 SUCCESS");
+        break;
+
+      case "DUPLICATE":
+        setStatus("⚠️ 既に登録済み");
+        break;
+
+      case "NOT_FOUND":
+        setStatus("❌ 未登録");
+        break;
+
+      default:
+        setStatus("⚠️ " + data.message);
+    }
+
+  })
+  .catch(err => {
+    log("通信エラー: " + err);
+    setStatus("❌ OFFLINE");
+  });
 }
 
-// スキャナ起動
-new Html5QrcodeScanner("reader", { fps: 10 }).render(onScanSuccess);
+// ★ページ読み込み時にテスト
+testSend();
 
 </script>
-
-</body>
-</html>
