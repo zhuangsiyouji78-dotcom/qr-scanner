@@ -23,14 +23,11 @@ function testSend(){
   setStatus("🚀 送信中...");
   log("送信開始");
 
-  fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ pno: pno })
-  })
-  .then(res => {
+ fetch(API_URL, {
+  method: "POST",
+  body: JSON.stringify({ pno: pno })
+})
+     .then(res => {
     log("レスポンス受信");
     return res.json();
   })
