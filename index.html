@@ -1,3 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>QRスキャナー</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; }
+    #reader { width: 300px; margin: auto; }
+    #status { font-size: 20px; margin-top: 10px; }
+    #log { font-size: 12px; color: gray; margin-top: 10px; }
+  </style>
+</head>
+
+<body>
+
+<h2>📷 QRスキャン</h2>
+
+<div id="reader"></div>
 <div id="status">待機中...</div>
 <div id="log"></div>
 
@@ -5,41 +24,40 @@
 
 const API_URL = "https://script.google.com/macros/s/AKfycbxaSdMBgbtt7PaM-p6Mp24JxvwmtYSyvsuJcpAjojkXMlxE-yxCAYwbvhjyneIm6nAq/exec";
 
+let lastPno = "";
+
+// ----------------
+// ログ表示
+// ----------------
 function log(msg){
   console.log(msg);
   document.getElementById("log").innerHTML += "<br>" + msg;
 }
 
+// ----------------
+// ステータス表示
+// ----------------
 function setStatus(msg){
   document.getElementById("status").innerText = msg;
   log("STATUS: " + msg);
 }
 
-// ★テスト送信関数
-function testSend(){
+// ----------------
+// GAS送信
+// ----------------
+function sendToGAS(pno){
 
-  let pno = "TEST123";
+  setStatus("📡 SENDING...");
+  log("送信pno: [" + pno + "]");
 
-  setStatus("🚀 送信中...");
-  log("送信開始");
-
- fetch(API_URL, {
-  method: "POST",
-  body: JSON.stringify({ pno: pno })
-})
-     .then(res => {
-    log("レスポンス受信");
-    return res.json();
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ pno: pno })
   })
+  .then(res => res.json())
   .then(data => {
 
-    log("JSON解析OK");
-
-    if (!data){
-      setStatus("❌ データなし");
-      return;
-    }
-
+    log("レスポンス受信");
     log("code: " + data.code);
 
     switch(data.code){
@@ -48,7 +66,7 @@ function testSend(){
         break;
 
       case "DUPLICATE":
-        setStatus("⚠️ 既に登録済み");
+        setStatus("⚠️ 既登録");
         break;
 
       case "NOT_FOUND":
@@ -62,11 +80,64 @@ function testSend(){
   })
   .catch(err => {
     log("通信エラー: " + err);
-    setStatus("❌ OFFLINE");
+    setStatus("❌ 通信失敗");
   });
 }
 
-// ★ページ読み込み時にテスト
-testSend();
+// ----------------
+// QR読取成功時
+// ----------------
+function onScanSuccess(decodedText) {
+
+  log("QR読取: " + decodedText);
+
+  // 前処理（超重要）
+  let pno = decodedText
+    .replace("P.NO:", "")
+    .replace(/\s/g, "")
+    .trim();
+
+  // 重複スキャン防止
+  if(pno === lastPno){
+    log("同一QRスキップ");
+    return;
+  }
+
+  lastPno = pno;
+
+  setStatus("📥 SCAN DONE");
+
+  sendToGAS(pno);
+}
+
+// ----------------
+// QRスキャナ起動
+// ----------------
+const html5QrCode = new Html5Qrcode("reader");
+
+Html5Qrcode.getCameras().then(devices => {
+
+  if (devices && devices.length) {
+
+    html5QrCode.start(
+      devices[0].id,
+      {
+        fps: 10,
+        qrbox: 250
+      },
+      onScanSuccess
+    );
+
+  } else {
+    setStatus("❌ カメラなし");
+  }
+
+}).catch(err => {
+  setStatus("❌ カメラ起動失敗");
+  log(err);
+});
 
 </script>
+
+</body>
+</html>
