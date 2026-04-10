@@ -34,16 +34,15 @@ body {
 <div id="reader"></div>
 <div id="result" class="result"></div>
 
-<!-- 非表示送信 -->
-<iframe name="hiddenFrame" style="display:none;"></iframe>
-
 <script>
-// ★ここが命：必ずこのURLにする
+
+// ★あなたのGAS URL（確定版）
 const API_URL = "https://script.google.com/macros/s/AKfycbyGsBwlupZp6J3c2UEGwZMLWKT6Ofh2K5IyP2ovEvsm8A2TC-mCUAGx2rW3mzIYNAAs/exec";
 
-alert("現在のAPI_URL:\n" + API_URL); // ← 強制確認
+alert("API_URL確認:\n" + API_URL); // デバッグ
 
 let lastScan = "";
+let lock = false; // 二重送信防止
 
 // 表示
 function show(msg, type="info"){
@@ -52,36 +51,41 @@ function show(msg, type="info"){
   el.className = "result " + type;
 }
 
-// 送信（iframe）
+// 送信（最強版：iframe src）
 function sendData(rawText){
+
+  if (lock) return;
+  lock = true;
 
   let pno = rawText.trim();
 
   if (!pno){
     show("NG: 空データ", "error");
+    lock = false;
     return;
   }
 
   let url = API_URL + "?pno=" + encodeURIComponent(pno);
 
   console.log("送信URL:", url);
-  show("送信URL:\n" + url, "info");
+  show("送信実行:\n" + url, "info");
 
   try {
-    let form = document.createElement("form");
-    form.method = "GET";
-    form.action = url;
-    form.target = "hiddenFrame";
+    let iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
 
-    document.body.appendChild(form);
-    form.submit();
+    document.body.appendChild(iframe);
 
-    show("送信成功: " + pno, "success");
+    show("送信完了: " + pno, "success");
 
   } catch (e) {
-    console.log("通信失敗:", e);
+    console.log("送信失敗:", e);
     show("OFFLINE（通信失敗）", "error");
   }
+
+  // 2秒後ロック解除
+  setTimeout(() => { lock = false; }, 2000);
 }
 
 // QR読み取り
@@ -97,7 +101,7 @@ function onScanSuccess(decodedText){
   sendData(pno);
 }
 
-// 起動
+// スキャナ起動
 new Html5QrcodeScanner("reader", { fps: 10 }).render(onScanSuccess);
 
 </script>
