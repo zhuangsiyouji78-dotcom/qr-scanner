@@ -17,7 +17,7 @@ body {
   margin: 20px auto;
 }
 .result {
-  font-size: 24px;
+  font-size: 20px;
   margin-top: 20px;
   word-break: break-all;
 }
@@ -34,14 +34,16 @@ body {
 <div id="reader"></div>
 <div id="result" class="result"></div>
 
-<!-- 非表示送信用 -->
+<!-- 非表示送信 -->
 <iframe name="hiddenFrame" style="display:none;"></iframe>
 
 <script>
+// ★ここが命：必ずこのURLにする
 const API_URL = "https://script.google.com/macros/s/AKfycbyGsBwlupZp6J3c2UEGwZMLWKT6Ofh2K5IyP2ovEvsm8A2TC-mCUAGx2rW3mzIYNAAs/exec";
 
+alert("現在のAPI_URL:\n" + API_URL); // ← 強制確認
+
 let lastScan = "";
-let queue = JSON.parse(localStorage.getItem("queue") || "[]");
 
 // 表示
 function show(msg, type="info"){
@@ -50,22 +52,7 @@ function show(msg, type="info"){
   el.className = "result " + type;
 }
 
-// 音
-function beep(success=true){
-  let audio = new Audio(success
-    ? "https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"
-    : "https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-  audio.play();
-}
-
-// バイブ
-function vibrate(success=true){
-  if (navigator.vibrate){
-    navigator.vibrate(success ? [100,50,100] : [300]);
-  }
-}
-
-// 送信（iframe方式）
+// 送信（iframe）
 function sendData(rawText){
 
   let pno = rawText.trim();
@@ -78,6 +65,7 @@ function sendData(rawText){
   let url = API_URL + "?pno=" + encodeURIComponent(pno);
 
   console.log("送信URL:", url);
+  show("送信URL:\n" + url, "info");
 
   try {
     let form = document.createElement("form");
@@ -88,44 +76,12 @@ function sendData(rawText){
     document.body.appendChild(form);
     form.submit();
 
-    show("送信: " + pno, "success");
-    beep(true);
-    vibrate(true);
+    show("送信成功: " + pno, "success");
 
   } catch (e) {
-
-    console.log("送信失敗:", e);
-
-    queue.push(pno);
-    localStorage.setItem("queue", JSON.stringify(queue));
-
-    show("OFFLINE保存: " + pno, "error");
-    vibrate(false);
+    console.log("通信失敗:", e);
+    show("OFFLINE（通信失敗）", "error");
   }
-}
-
-// 再送処理
-function retryQueue(){
-
-  if(queue.length === 0) return;
-
-  console.log("再送:", queue);
-
-  let copy = [...queue];
-  queue = [];
-  localStorage.setItem("queue", JSON.stringify(queue));
-
-  copy.forEach(pno => {
-    let url = API_URL + "?pno=" + encodeURIComponent(pno);
-
-    let form = document.createElement("form");
-    form.method = "GET";
-    form.action = url;
-    form.target = "hiddenFrame";
-
-    document.body.appendChild(form);
-    form.submit();
-  });
 }
 
 // QR読み取り
@@ -143,9 +99,6 @@ function onScanSuccess(decodedText){
 
 // 起動
 new Html5QrcodeScanner("reader", { fps: 10 }).render(onScanSuccess);
-
-// 5秒ごとに再送
-setInterval(retryQueue, 5000);
 
 </script>
 
